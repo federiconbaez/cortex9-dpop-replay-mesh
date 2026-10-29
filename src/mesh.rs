@@ -24,6 +24,9 @@ pub enum Mode {
     SharedTtlW,
     /// One shared jti cache, entries live `window + skew` ms.
     SharedTtlWS,
+    /// Each node keeps its own jti cache, entries expire at `iat + window`
+    /// on the node clock (added after the first run, see PREREGISTRO.md).
+    LocalIatTtl,
     /// Server-issued single-use nonces (RFC 9449 section 9), tracked by the
     /// node that issued them.
     Nonce,
@@ -44,6 +47,7 @@ impl Mode {
             Mode::SharedTtlW => "shared_ttl_w",
             Mode::SharedTtlWS => "shared_ttl_w_plus_skew",
             Mode::Nonce => "nonce",
+            Mode::LocalIatTtl => "local_ttl_iat",
         }
     }
     fn shared(self) -> bool {
@@ -173,6 +177,14 @@ impl Node {
                     return "ERR replay".into();
                 }
                 self.jtis.insert(c.jti, now + self.cfg.window_ms);
+                "OK -".into()
+            }
+            Mode::LocalIatTtl => {
+                // Keep the jti as long as the iat window can accept it.
+                if matches!(self.jtis.get(&c.jti), Some(&e) if e >= now) {
+                    return "ERR replay".into();
+                }
+                self.jtis.insert(c.jti, c.iat_ms + self.cfg.window_ms);
                 "OK -".into()
             }
             Mode::SharedTtlW | Mode::SharedTtlWS => {

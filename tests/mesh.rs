@@ -56,10 +56,18 @@ fn shared_cache_with_skew_margin_and_nonce_block_replays() {
 }
 
 #[test]
-fn single_node_local_cache_blocks_replays() {
+fn single_node_local_cache_blocks_replays_without_skew() {
     let s = run(small(Mode::Local, 1, 0));
     assert_eq!(s.legit_ok, 60);
     assert_eq!(s.replays_accepted, 0);
+}
+
+#[test]
+fn single_node_iat_ttl_cache_blocks_replays_with_skew() {
+    for skew in [1000, 2000, 5000] {
+        let s = run(small(Mode::LocalIatTtl, 1, skew));
+        assert_eq!(s.replays_accepted, 0, "skew {skew}");
+    }
 }
 
 #[test]
