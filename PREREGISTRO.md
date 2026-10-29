@@ -27,3 +27,23 @@ Latencia: p50/p99 del lado del cliente (firma ES256 + TCP loopback + verificaci�
 Todos los requests legítimos tienen que aceptarse (skew ≤ 5 s < ventana 10 s); `--check` falla si no.
 
 Límites conocidos / known limits: un solo cliente secuencial, sin carga concurrente; loopback en una VM compartida, no red real; el nonce se liga al nodo que lo emite y el balanceo es al azar (con sesiones pegajosas el reintento desaparecería, no se mide); no hay access token ni `ath`.
+
+## Adenda 1 / Addendum 1 (después de la primera corrida / after the first run)
+
+Escrita y commiteada antes de la segunda corrida. / Written and committed before the second run.
+
+La primera corrida (`results/run1-prereg/sweep.csv`) **falsó** un esperado: la caché `local` con N = 1 aceptó 36 replays con skew 1 s y 44 con skew 2 s (`--check` salió con 1). Causa: el jti vence a *llegada + ventana* en el reloj del nodo, mientras que la ventana de `iat` sigue aceptando hasta *iat + ventana + atraso del nodo*. Con skew 0 y 5 s no pasó porque el desfase sorteado para ese único nodo fue 0 o positivo.
+
+The first run **falsified** an expectation: `local` with N = 1 accepted replays at 1 s and 2 s skew, because the jti expires at arrival + window on the node clock while the `iat` window stays open until iat + window + node lag.
+
+Cambios para la segunda corrida / changes for the second run:
+- Modo nuevo `local_ttl_iat`: el jti vence a `iat + ventana` (reloj del nodo). Esperado: 0 replays con N = 1 para todo skew; con N > 1 ≈ igual a `local`, porque entre nodos no comparte nada.
+- `--check`: el control de N = 1 pasa a `local_ttl_iat`. Los demás controles no cambian.
+- Las semillas de los cinco modos originales son las mismas: sus columnas de conteo tienen que repetir la primera corrida.
+- Se escribe `results/latency_ratio.csv` con p99 de `nonce` / `local` y / `shared_ttl_w_plus_skew`.
+
+Comando / command:
+
+```sh
+cargo run --release --bin dpop-replay-mesh -- --requests 1000 --seed 42 --csv results/sweep.csv --check
+```
