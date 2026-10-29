@@ -67,6 +67,17 @@ Lectura:
 
 `cargo test`: 7/7. Ningún test se saltea.
 
+### Qué prueba y qué no el 0 replays aceptados
+
+- **Prueba**: dentro de esta simulación, `nonce` y `shared_ttl_w_plus_skew` no dejaron pasar ningún replay en las 20 combinaciones (N, skew) de las dos corridas, y ningún request legítimo fue rechazado en las 120 configuraciones. La simulación usa un replay por request aceptado, a un nodo al azar, con retardo uniforme de 0 a 20 s, desfases fijos de hasta ±5 s y una ventana de ±10 s. El control negativo `no_check` deja pasar entre 31 % y 69 %, así que el arnés detecta un mecanismo que no protege.
+- **No prueba**:
+  - Nada sobre replays con otras distribuciones de tiempo, desfases mayores a 5 s ni relojes que derivan.
+  - Nada sobre carreras con clientes concurrentes: el cliente es secuencial.
+  - Nada sobre el uso de una prueba robada antes que el cliente legítimo.
+  - Nada sobre el compromiso de la clave privada DPoP: con la clave, el atacante fabrica pruebas nuevas y la protección contra replay no aplica.
+  - Nada sobre red real ni sobre una caché compartida real como Redis.
+- **El tráfico y los ataques los generamos nosotros**: un 0 % en este arnés indica que los mecanismos funcionan en este modelo, no en todo despliegue.
+
 ### Nivel de verificación
 
 **B**: el mecanismo está medido, con control negativo (`no_check`) y controles de 0 replays, y los conteos son deterministas en tres corridas. No es B+ porque no hay línea base externa que superar. No es C porque no hubo carga concurrente ni red real.
@@ -97,6 +108,17 @@ Real ES256 DPoP proofs; a client, N node threads and a shared cache with atomic 
 **The first pre-registered run falsified one control**: a single node with a jti cache that expires at arrival + window accepted 3.6 % and 4.4 % of replays at 1 s and 2 s skew. A lagging node's `iat` window outlives that entry. RFC 9449 §11.1 says to keep the jti for the window in which the proof would be accepted; `local_ttl_iat` does that and was added by a pre-registered addendum. In the second run, `--check` passes and the count columns repeat the first run exactly (and again in a clean clone).
 
 Results are in the tables above. Nonce and the shared cache with a skew margin accepted 0 replays everywhere. A shared cache with TTL = window leaks up to 11.9 % under skew. Local caches leak about (N−1)/N of the in-window replays. Nonce p99 stays under 2× local in 19/20 and 18/20 (N, skew) cells across the two runs, with two non-repeating outliers. Nonce p50 approaches 2× at N ≥ 4 because almost every request needs a retry under random load balancing.
+
+### What 0 accepted replays proves and what it doesn't
+
+- **It proves** that, inside this simulation, `nonce` and `shared_ttl_w_plus_skew` let no replay through in the 20 (N, skew) cells of both runs, and that no legitimate request was rejected in 120 configurations. The simulation uses one replay per accepted request, to a random node, after a uniform 0–20 s delay, with fixed offsets up to ±5 s and a ±10 s window. `no_check` leaks 31–69 %, so the harness catches a mechanism that does not protect.
+- **It doesn't cover**:
+  - other timing distributions, skew above 5 s or clock drift;
+  - concurrent races (the client is sequential);
+  - a stolen proof used before the legitimate client;
+  - DPoP private-key compromise;
+  - real networks or a real shared cache.
+- **The traffic and attacks are ours.**
 
 ### Verification level
 
